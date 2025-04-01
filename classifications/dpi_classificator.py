@@ -1,83 +1,35 @@
-import socket
-import dpkt
+import re
+from scapy.all import sniff, raw
+from scapy.layers.inet import IP, TCP
 
-# Сигнатуры для классификации сетевого трафика
 SIGNATURES = {
-    b"HTTP/1.1": "HTTP",
-    b"Host: youtube.com": "YouTube",
-    b"SSH-": "SSH",
-    b"GET /video": "VideoStream",
-    b"ClientHello": "TLS",
-    b"ServerHello": "TLS",
-    b"MAIL FROM": "SMTP",
-    b"220 FTP": "FTP",
-    b"PASS ": "FTP-Auth",
-    b"USER ": "FTP-Auth",
-    b"GET ": "HTTP",
-    b"POST ": "HTTP",
-    b"PUT ": "HTTP",
-    b"DELETE ": "HTTP",
-    b"CONNECT ": "HTTP-Tunnel",
-    b"Content-Type: application/json": "API Request",
-    b"Bitcoin": "Bitcoin",
-    b"Ethereum": "Ethereum",
-    b"DNS": "DNS",
+    "HTTP": [
+        rb"GET /", rb"POST /", rb"HEAD /", rb"PUT /",
+        rb"DELETE /", rb"OPTIONS /", rb"HTTP/1\.[01]"
+    ]
 }
 
-def dpi_classification(packet_payload):
-    """
-    Классифицирует сетевой пакет на основе сигнатур.
-    """
-    for signature, category in SIGNATURES.items():
-        if signature in packet_payload:
-            return category
-    return "Unknown"
 
-def process_pcap(file_path):
-    """
-    Обрабатывает pcap-файл и классифицирует пакеты.
-    """
-    with open(file_path, 'rb') as f:
-        pcap = dpkt.pcap.Reader(f)
-        for timestamp, raw_packet in pcap:
-            eth = dpkt.ethernet.Ethernet(raw_packet)
-            if isinstance(eth.data, dpkt.ip.IP):
-                ip = eth.data
-                if isinstance(ip.data, (dpkt.tcp.TCP, dpkt.udp.UDP)):
-                    payload = ip.data.data
-                    category = dpi_classification(payload)
-                    print(f"Packet Timestamp: {timestamp}, Category: {category}")
+def dpi_classification(payload):
+    found_patterns = []
+
+    for pattern in SIGNATURES["HTTP"]:
+        if re.search(pattern, payload, re.DOTALL):
+            found_patterns.append(pattern)
+
+    return found_patterns if found_patterns else None
 
 
-def capture_live_traffic():
-    # Создание RAW-сокета для захвата пакетов (только IPv4)
-    with socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_IP) as sock:
-        sock.bind(("en0", 0))
-  # Замените "en0" на имя сетевого интерфейса (на Windows это может быть "Wi-Fi")
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
+def packet_handler(packet):
+    if packet.haslayer(IP) and packet.haslayer(TCP):
+        payload = raw(packet[TCP])
 
-        # Windows: включаем режим промискуитета (Linux/macOS не требуется)
-        try:
-            sock.ioctl(socket.SIO_RCVALL, socket.RCVALL_ON)
-        except AttributeError:
-            pass  # SIO_RCVALL отсутствует на macOS
+        if payload:
+            matched_patterns = dpi_classification(payload)
 
-        print("Захват трафика начался... (нажмите Ctrl+C для остановки)")
-        try:
-            while True:
-                raw_packet, _ = sock.recvfrom(65535)
-                print(f"Пакет получен: {raw_packet[:50]}...")  # Вывод первых 50 байт пакета
-        except KeyboardInterrupt:
-            print("Захват трафика остановлен.")
+            if matched_patterns:
+                print(f"Пакет: {packet[IP].src} -> {packet[IP].dst} | протокол: HTTP")
+                print(f"Сигнатуры: {matched_patterns}")
 
-        # Windows: выключаем режим промискуитета
-        try:
-            sock.ioctl(socket.SIO_RCVALL, socket.RCVALL_OFF)
-        except AttributeError:
-            pass
 
-# Пример обработки pcap-файла
-# process_pcap("traffic.pcap")
-
-# Пример захвата живого трафика (необходимы root-права)
-capture_live_traffic()
+sniff(prn=packet_handler, timeout=600)
