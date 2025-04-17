@@ -41,9 +41,9 @@ def classify_packet(packet):
             traffic_type = "Other"
 
         print(f"[{traffic_type}] {src_ip} -> {dst_ip} (Protocol: {proto})")
-        print("Hexdump:")
-        hexdump(packet)
+        #print("Hexdump:")
+        #hexdump(packet)
 
 
 print("Начало захвата трафика...")
-sniff(filter="ip", iface=target_interface, prn=classify_packet, count=3)
+sniff(filter="ip", iface=target_interface, prn=classify_packet)
