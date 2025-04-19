@@ -223,7 +223,7 @@ def parse_pcap_to_flows(pcap_path):
 
     return list(flows.values())
 
-flows = parse_pcap_to_flows("new.pcap")
+flows = parse_pcap_to_flows("../data/raw/new.pcap")
 features_list = []
 
 for flow in flows:

@@ -5,9 +5,9 @@ from scapy.utils import rdpcap
 
 # Захватить 100 пакетов и сохранить в файл
 packets = sniff(count=10)
-wrpcap("captured.pcap", packets)
+wrpcap("../pcaps/captured.pcap", packets)
 
-packets = rdpcap("captured.pcap")
+packets = rdpcap("../pcaps/captured.pcap")
 for pkt in packets:
     if pkt.haslayer(IP):
         src = pkt[IP].src
