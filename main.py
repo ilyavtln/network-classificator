@@ -1,49 +1,85 @@
-from scapy.all import sniff, get_if_list
-from scapy.interfaces import ifaces
-from scapy.layers.inet import IP, TCP, UDP, ICMP
-from scapy.utils import hexdump
+from scapy.all import sniff, wrpcap
+import socket
+import datetime
+import sys
 
-interfaces = get_if_list()
-target_interface = 'en0'
-
-if target_interface not in interfaces:
-    exit(1)
+# Список доменов для захвата
+DOMAINS = ["spotify.com", "music.yandex.ru"]
+PORTS = [443]  # HTTPS-порт для стриминга
 
 
-def classify_packet(packet):
-    if IP in packet:
-        src_ip = packet[IP].src
-        dst_ip = packet[IP].dst
-        proto = packet[IP].proto
-
-        if packet.haslayer(TCP):
-            sport, dport = packet[TCP].sport, packet[TCP].dport
-            if dport == 80 or sport == 80:
-                traffic_type = "HTTP"
-            elif dport == 443 or sport == 443:
-                traffic_type = "HTTPS"
-            elif dport == 22 or sport == 22:
-                traffic_type = "SSH"
-            else:
-                traffic_type = "TCP"
-
-        elif packet.haslayer(UDP):
-            sport, dport = packet[UDP].sport, packet[UDP].dport
-            if dport == 53 or sport == 53:
-                traffic_type = "DNS"
-            else:
-                traffic_type = "UDP"
-
-        elif packet.haslayer(ICMP):
-            traffic_type = "ICMP (Ping)"
-
-        else:
-            traffic_type = "Other"
-
-        print(f"[{traffic_type}] {src_ip} -> {dst_ip} (Protocol: {proto})")
-        #print("Hexdump:")
-        #hexdump(packet)
+def resolve_domains(domains):
+    """Разрешает домены в IP-адреса."""
+    ip_list = []
+    for domain in domains:
+        try:
+            ip = socket.gethostbyname(domain)
+            ip_list.append(ip)
+            print(f"Разрешен домен {domain} -> {ip}")
+        except socket.gaierror:
+            print(f"Не удалось разрешить домен {domain}")
+    return ip_list
 
 
-print("Начало захвата трафика...")
-sniff(filter="ip", iface=target_interface, prn=classify_packet)
+def create_bpf_filter(ip_list):
+    """Создает BPF-фильтр для scapy на основе IP-адресов и портов."""
+    if not ip_list:
+        return ""
+    ip_filter = " or ".join(f"host {ip}" for ip in ip_list)
+    port_filter = " or ".join(f"tcp port {port}" for port in PORTS)
+    return f"({port_filter}) and ({ip_filter})"
+
+
+def packet_callback(packet):
+    """Callback-функция для обработки каждого захваченного пакета."""
+    packets.append(packet)
+    print(f"Захвачен пакет: {packet.summary()}")
+
+
+def start_capture(interface, output_file, duration=60):
+    """Захват трафика для Spotify и Яндекс.Музыки и сохранение в PCAP-файл."""
+    global packets
+    packets = []  # Список для хранения пакетов
+
+    # Разрешение доменов в IP-адреса
+    ip_list = resolve_domains(DOMAINS)
+    if not ip_list:
+        print("Не удалось разрешить ни один из доменов. Проверьте подключение или доменные имена.")
+        sys.exit(1)
+
+    # Создание BPF-фильтра
+    bpf_filter = create_bpf_filter(ip_list)
+    if not bpf_filter:
+        print("Не удалось создать фильтр для захвата трафика.")
+        sys.exit(1)
+
+    print(f"BPF-фильтр: {bpf_filter}")
+    print(f"Начало захвата трафика на интерфейсе {interface}...")
+
+    try:
+        # Захват трафика
+        sniff(iface=interface, prn=packet_callback, timeout=duration, filter=bpf_filter)
+
+        # Сохранение пакетов в PCAP-файл
+        print(f"Сохранение {len(packets)} пакетов в файл {output_file}...")
+        wrpcap(output_file, packets)
+        print(f"Захват завершен. Файл сохранен: {output_file}")
+
+    except Exception as e:
+        print(f"Ошибка при захвате трафика: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    # Имя сетевого интерфейса (узнайте через `scapy.all.get_working_ifaces()`)
+    INTERFACE = "Беспроводная сеть"  # Замените на ваш интерфейс (например, 'Wi-Fi')
+
+    # Имя выходного файла с меткой времени
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    OUTPUT_FILE = f"music_traffic_{timestamp}.pcap"
+
+    # Длительность захвата (в секундах)
+    DURATION = 60  # 1 минута
+
+    # Запуск захвата
+    start_capture(INTERFACE, OUTPUT_FILE, DURATION)
