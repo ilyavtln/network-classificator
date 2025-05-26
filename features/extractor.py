@@ -3,7 +3,7 @@ from scapy.all import rdpcap
 from scapy.layers.inet import IP, TCP, UDP
 
 
-def extract_features_from_pcap(pcap_file, category):
+def extract_features_from_pcap(pcap_file, category=""):
     """Извлекает признаки из PCAP-файла, исключая порты и IP-адреса."""
     try:
         packets = rdpcap(pcap_file)
