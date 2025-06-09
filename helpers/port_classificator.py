@@ -3,9 +3,10 @@ import csv
 from io import StringIO
 from scapy.all import sniff
 from scapy.layers.inet import IP, TCP, UDP
+import matplotlib.pyplot as plt
 
-known_count = 0
-unknown_count = 0
+KNOWN_PORTS = 0
+UNKNOWN_PORTS = 0
 
 def update_port_map(address):
     response = requests.get(address)
@@ -39,7 +40,7 @@ def print_classification(proto_type, raw, protocol):
 
 
 def packet_handler(packet):
-    global known_count, unknown_count
+    global KNOWN_PORTS, UNKNOWN_PORTS
 
     if packet.haslayer(IP):
         protocol = None
@@ -54,17 +55,23 @@ def packet_handler(packet):
             print_classification("UDP", packet[IP], protocol)
 
         if protocol == "Unknown":
-            known_count += 1
+            UNKNOWN_PORTS += 1
         else:
-            unknown_count += 1
+            KNOWN_PORTS += 1
 
 
-
-
-
-url = "https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.csv"
-port_map = update_port_map(url)
+URL = "https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.csv"
+port_map = update_port_map(URL)
 
 print("Классификация пакетов по порту")
 sniff(prn=packet_handler, timeout=600)
-print(known_count / (known_count + unknown_count), unknown_count / (known_count + unknown_count))
+print(KNOWN_PORTS / (KNOWN_PORTS + UNKNOWN_PORTS), UNKNOWN_PORTS / (KNOWN_PORTS + UNKNOWN_PORTS))
+
+labels = ['Известные порты', 'Неизвестные порты']
+sizes = [KNOWN_PORTS, UNKNOWN_PORTS]
+
+plt.figure(figsize=(8, 8))
+plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140)
+plt.axis('equal')
+plt.savefig("../images/port_classificator.png")
+plt.show()

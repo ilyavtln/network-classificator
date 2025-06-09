@@ -32,4 +32,4 @@ def packet_handler(packet):
                 print(f"Сигнатуры: {matched_patterns}")
 
 
-sniff(prn=packet_handler, timeout=600)
+sniff(prn=packet_handler, timeout=10)
