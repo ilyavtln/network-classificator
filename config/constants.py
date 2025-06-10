@@ -1,9 +1,9 @@
-CATEGORIES = {
-    'games',
-    'music',
-    'social_network',
-    'video_hosting',
+CATEGORIES = sorted([
     'cloud_service',
     'e-mail',
-    'information'
-}
+    'games',
+    'information',
+    'music',
+    'social_network',
+    'video_hosting'
+])
