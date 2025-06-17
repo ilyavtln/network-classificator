@@ -9,7 +9,6 @@ SIGNATURES = {
     ]
 }
 
-
 def dpi_classification(payload):
     found_patterns = []
 
@@ -18,7 +17,6 @@ def dpi_classification(payload):
             found_patterns.append(pattern)
 
     return found_patterns if found_patterns else None
-
 
 def packet_handler(packet):
     if packet.haslayer(IP) and packet.haslayer(TCP):
@@ -30,6 +28,5 @@ def packet_handler(packet):
             if matched_patterns:
                 print(f"Пакет: {packet[IP].src} -> {packet[IP].dst} | протокол: HTTP")
                 print(f"Сигнатуры: {matched_patterns}")
-
 
 sniff(prn=packet_handler, timeout=10)
